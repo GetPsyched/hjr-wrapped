@@ -92,24 +92,33 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
-    packages = mkIf (cfg.package != null) [cfg.package];
-    xdg.config.files = {
-      "git/config" = mkIf (cfg.settings != {} || cfg.integrations.difftastic.enable) {
-        source = gitIni.generate "config" (
-          cfg.settings
-          // (let
-            difft-command = concatStringsSep " " ([(getExe cfg.integrations.difftastic.package)] ++ cfg.integrations.difftastic.flags);
-          in
-            optionalAttrs (cfg.integrations.difftastic.enable) {
-              diff.external = difft-command;
-              diff.tool = "difftastic";
-              difftool.difftastic.cmd = "${difft-command} $LOCAL $REMOTE";
-            })
-        );
-      };
-      "git/ignore" = mkIf (cfg.ignore != {}) {text = cfg.ignore;};
-      "git/attributes" = mkIf (cfg.attributes != {}) {text = cfg.attributes;};
+  config = let
+    mergedSettings =
+      cfg.settings
+      // (let
+        difft-command = concatStringsSep " " ([(getExe cfg.integrations.difftastic.package)] ++ cfg.integrations.difftastic.flags);
+      in
+        optionalAttrs (cfg.integrations.difftastic.enable) {
+          diff.external = difft-command;
+          diff.tool = "difftastic";
+          difftool.difftastic.cmd = "${difft-command} $LOCAL $REMOTE";
+        });
+  in
+    mkIf cfg.enable {
+      packages = mkIf (cfg.package != null) [
+        (pkgs.symlinkJoin {
+          inherit (pkgs.git) name;
+          paths = [pkgs.git];
+          buildInputs = [pkgs.makeWrapper];
+          postBuild = ''
+            wrapProgram $out/bin/git --set XDG_CONFIG_HOME "${
+              pkgs.runCommand "config" {} ''
+                mkdir -p $out/git
+                printf "%s" '${lib.generators.toGitINI mergedSettings}' > $out/git/config
+              ''
+            }"
+          '';
+        })
+      ];
     };
-  };
 }
