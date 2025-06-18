@@ -53,9 +53,20 @@ in {
   };
 
   config = mkIf cfg.enable {
-    packages = mkIf (cfg.package != null) [cfg.package];
-    files.${cfg.destination}.source = mkIf (cfg.settings != {}) (
-      gitIni.generate ".gitconfig" cfg.settings
-    );
+    packages = mkIf (cfg.package != null) [
+      (pkgs.symlinkJoin {
+        inherit (pkgs.git) name;
+        paths = [pkgs.git];
+        buildInputs = [pkgs.makeWrapper];
+        postBuild = ''
+          wrapProgram $out/bin/git --set XDG_CONFIG_HOME "${
+            pkgs.runCommand "config" {} ''
+              mkdir -p $out/git
+              printf "%s" '${lib.generators.toGitINI cfg.settings}' > $out/git/config
+            ''
+          }"
+        '';
+      })
+    ];
   };
 }
