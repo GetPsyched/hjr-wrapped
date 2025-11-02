@@ -9,6 +9,7 @@
     };
     hjem = {
       url = "github:feel-co/hjem";
+      inputs.ndg.follows = "ndg";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     ndg = {
